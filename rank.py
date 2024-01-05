@@ -25,7 +25,7 @@ def get_self_rank(uid, rank_key, pipeline=None):
 def get_float_score(end, score):
     """
     获取玩家最终存入 redis 的分数
-    整数位是玩家得分 小数位是到结束之间剩余的时间
+    整数位是玩家得分 小数位是到结束之前剩余的时间
     """
     end_float_str = "0." + str(max(0, end * 1000000 - int(time.time() * 1000000)))
     return float(score) + float(end_float_str)
@@ -52,8 +52,9 @@ def update_game_rank(uid, rank_key, add_score, end_time):
     pipeline.zadd(rank_key, {str(uid): get_float_score(end_time, int(old_point) + add_score)})
     if old_rank is None and not is_exist:
         # 榜单新建 设置榜单过期时间
-        pipeline.expire(rank_key, 30)
+        pipeline.expire(rank_key, 60 * 86400)
     pipeline.execute()
+
 
 def get_rank_list_info(uid, rank_key):
     """
@@ -65,7 +66,6 @@ def get_rank_list_info(uid, rank_key):
     pipeline.zrevrange(rank_key, start, end, withscores=True)
     pipeline.zcard(rank_key)
     uid_scores, rank_cnt = pipeline.execute()
-    self_info = {}
     if not uid_scores:
         rank_info = []
     else:
@@ -85,12 +85,9 @@ def get_rank_list_info(uid, rank_key):
     return ret
 
 
-
-
 if __name__ == "__main__":
     rank_prefix = "leaderboard"
     end_time = int(time.mktime(datetime.datetime(2024, 2, 4).timetuple()))
-    uids = [i for i in range(100)]
     rank_key = get_rank_key(rank_prefix, end_time)
     for i in range(10000):
         update_game_rank(i, rank_key, i // 10, end_time)
